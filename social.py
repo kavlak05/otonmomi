@@ -17,12 +17,16 @@ class SocialListener:
                     topic_hits[topic] += 1
             for token in text.split():
                 cleaned = token.strip(".,!?:;\"'()[]")
-                if len(cleaned) >= 4:
+                if len(cleaned) >= 4 and not cleaned.startswith("http"):
                     word_counts[cleaned] += 1
 
+        signal = min(
+            1.0,
+            round(sum(topic_hits.values()) / max(1, len(research_items)), 2),
+        )
         return {
             "tracked_topics": self.topics,
             "topic_hits": topic_hits,
             "top_terms": word_counts.most_common(8),
-            "signal_strength": min(1.0, round(sum(topic_hits.values()) / max(1, len(research_items)), 2)),
+            "signal_strength": signal,
         }
