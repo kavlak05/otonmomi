@@ -1,14 +1,42 @@
 from dataclasses import dataclass, field
 import os
 
+
 @dataclass
 class SystemConfig:
-    host: str = "127.0.0.1"
-    ws_port: int = 8765
-    http_port: int = 8080
-    openai_api_key: str = field(default_factory=lambda: os.getenv("OPENAI_API_KEY", ""))
-    voice_model: str = "tts-1"
-    reasoning_model: str = "gpt-4o"
-    avatar_assets_path: str = "./meta_human_assets"
+    host: str = "0.0.0.0"
+    http_port: int = int(os.getenv("HTTP_PORT", "8080"))
+    ws_port: int = int(os.getenv("WS_PORT", "8765"))
+    gemini_api_key: str = field(
+        default_factory=lambda: os.getenv("GEMINI_API_KEY", "").strip()
+    )
+    gemini_model: str = field(
+        default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
+    )
+    request_timeout: int = int(os.getenv("REQUEST_TIMEOUT", "25"))
+    autonomy_interval_sec: int = int(os.getenv("AUTONOMY_INTERVAL_SEC", "45"))
+    db_path: str = field(
+        default_factory=lambda: os.getenv("DB_PATH", "./data/autonomous_avatar.db").strip()
+    )
+    avatar_assets_path: str = field(
+        default_factory=lambda: os.getenv("AVATAR_ASSETS_PATH", "./meta_human_assets").strip()
+    )
+    rss_feeds: list[str] = field(
+        default_factory=lambda: [
+            "https://hnrss.org/frontpage",
+            "https://export.arxiv.org/rss/cs.AI",
+        ]
+    )
+    social_topics: list[str] = field(
+        default_factory=lambda: [
+            "ai",
+            "agent",
+            "autonomous",
+            "llm",
+            "robotics",
+            "avatar",
+        ]
+    )
+
 
 CONFIG = SystemConfig()
