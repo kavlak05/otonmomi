@@ -39,5 +39,5 @@ class AvatarServer:
         finally:
             await self.unregister(websocket)
 
-    def start(self):
-        return websockets.serve(self.handler, self.host, self.port)
+    async def start(self):
+        return await websockets.serve(self.handler, self.host, self.port)
