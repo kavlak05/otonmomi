@@ -1,14 +1,15 @@
 import json
+from pathlib import Path
 import sqlite3
 import threading
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 
 class MemoryStore:
-    def __init__(self, db_path: Path) -> None:
-        self.db_path = db_path
+    def __init__(self, db_path: str | Path) -> None:
+        self.db_path = Path(db_path)
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._init_db()
 
@@ -47,6 +48,21 @@ class MemoryStore:
                     evidence_score REAL NOT NULL,
                     updated_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS chat_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    role TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    emotion TEXT NOT NULL DEFAULT 'neutral',
+                    created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS self_improvements (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    area TEXT NOT NULL,
+                    proposal TEXT NOT NULL,
+                    priority TEXT NOT NULL DEFAULT 'medium',
+                    status TEXT NOT NULL DEFAULT 'proposed',
+                    created_at TEXT NOT NULL
+                );
             """)
 
     @staticmethod
@@ -67,15 +83,15 @@ class MemoryStore:
                 "SELECT id, source, payload_json, created_at FROM observations ORDER BY id DESC LIMIT ?",
                 (limit,),
             ).fetchall()
-        result: list[dict[str, Any]] = []
-        for row in rows:
-            result.append({
+        return [
+            {
                 "id": row["id"],
                 "source": row["source"],
                 "payload": json.loads(row["payload_json"]),
                 "created_at": row["created_at"],
-            })
-        return result
+            }
+            for row in rows
+        ]
 
     def add_decision(self, cycle_num: int, action: str, rationale: str, confidence: float) -> int:
         with self._lock, self._connect() as conn:
@@ -125,6 +141,38 @@ class MemoryStore:
         with self._lock, self._connect() as conn:
             rows = conn.execute(
                 "SELECT id, claim, status, evidence_score, updated_at FROM hypotheses ORDER BY id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def add_chat_message(self, role: str, message: str, emotion: str = "neutral") -> int:
+        with self._lock, self._connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO chat_history (role, message, emotion, created_at) VALUES (?, ?, ?, ?)",
+                (role, message, emotion, self._now()),
+            )
+            return int(cur.lastrowid)
+
+    def recent_chat(self, limit: int = 20) -> list[dict[str, Any]]:
+        with self._lock, self._connect() as conn:
+            rows = conn.execute(
+                "SELECT id, role, message, emotion, created_at FROM chat_history ORDER BY id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return list(reversed([dict(row) for row in rows]))
+
+    def add_improvement(self, area: str, proposal: str, priority: str = "medium") -> int:
+        with self._lock, self._connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO self_improvements (area, proposal, priority, status, created_at) VALUES (?, ?, ?, 'proposed', ?)",
+                (area, proposal, priority, self._now()),
+            )
+            return int(cur.lastrowid)
+
+    def recent_improvements(self, limit: int = 15) -> list[dict[str, Any]]:
+        with self._lock, self._connect() as conn:
+            rows = conn.execute(
+                "SELECT id, area, proposal, priority, status, created_at FROM self_improvements ORDER BY id DESC LIMIT ?",
                 (limit,),
             ).fetchall()
         return [dict(row) for row in rows]
