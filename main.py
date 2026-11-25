@@ -31,14 +31,14 @@ class MetaHumanSystem:
         logging.info("Avatar durumu güncellendi.")
 
     async def main_loop(self):
-        server_task = asyncio.create_task(self.avatar_server.start().wait_closed())
+        server = await self.avatar_server.start()
         logging.info("Sistem başlatıldı, Unreal Engine bağlantısı bekleniyor.")
         
         await asyncio.sleep(5)
         mock_audio = b"\x00\x01\x02\x03" 
         await self.process_interaction(mock_audio)
         
-        await server_task
+        await server.wait_closed()
 
 if __name__ == "__main__":
     system = MetaHumanSystem()
