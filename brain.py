@@ -1,5 +1,5 @@
 import json
-from typing import Any
+from typing import Any, Union
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
@@ -12,17 +12,25 @@ from telemetry import TelemetryCollector
 
 
 class AutonomousBrain:
+
     def __init__(self, config: SystemConfig, memory: MemoryStore) -> None:
         self.config = config
         self.memory = memory
         self.telemetry = TelemetryCollector()
-        self.research = ResearchEngine(config.rss_feeds, timeout=config.request_timeout)
+        self.research = ResearchEngine(
+            config.rss_feeds, timeout=config.request_timeout
+        )
         self.social = SocialListener(config.social_topics)
         self.logic = LogicReasoner()
         self.cycle_count = 0
 
-    def _call_llm_decision(self, context_summary: str) -> dict[str, Any] | None:
-        if self.config.llm_provider != "openai" or not self.config.openai_api_key:
+    def _call_llm_decision(
+        self, context_summary: str
+    ) -> Union[dict[str, Any], None]:
+        if (
+            self.config.llm_provider != "openai"
+            or not self.config.openai_api_key
+        ):
             return None
 
         payload = {
@@ -54,11 +62,20 @@ class AutonomousBrain:
             content = data["choices"][0]["message"]["content"]
             parsed = json.loads(content)
             return {
-                "action": str(parsed.get("action", "consolidate_and_monitor")),
+                "action": str(
+                    parsed.get("action", "consolidate_and_monitor")
+                ),
                 "rationale": str(parsed.get("rationale", "LLM kararı alındı.")),
                 "confidence": float(parsed.get("confidence", 0.75)),
             }
-        except (URLError, TimeoutError, OSError, KeyError, ValueError, TypeError):
+        except (
+            URLError,
+            TimeoutError,
+            OSError,
+            KeyError,
+            ValueError,
+            TypeError,
+        ):
             return None
 
     def step(self) -> dict[str, Any]:
@@ -75,10 +92,18 @@ class AutonomousBrain:
 
         hypotheses = self.logic.evaluate_hypotheses(tel, res, soc)
         for h in hypotheses:
-            self.memory.record_hypothesis(h["claim"], h["status"], h["evidence_score"])
+            self.memory.record_hypothesis(
+                h["claim"], h["status"], h["evidence_score"]
+            )
 
-        top_titles = [i.get("title", "") for i in res.get("items", [])[:3] if i.get("title")]
-        summary_text = " | ".join(top_titles) if top_titles else "Yeni başlık bulunamadı; kaynaklar izleniyor."
+        top_titles = [
+            i.get("title", "") for i in res.get("items", [])[:3] if i.get("title")
+        ]
+        summary_text = (
+            " | ".join(top_titles)
+            if top_titles
+            else "Yeni başlık bulunamadı; kaynaklar izleniyor."
+        )
         self.memory.consolidate_topic(
             topic="global_ai_and_tech",
             summary=summary_text[:500],
@@ -86,7 +111,8 @@ class AutonomousBrain:
         )
 
         llm_decision = self._call_llm_decision(
-            f"Cycle={self.cycle_count}, Items={res.get('item_count', 0)}, Signal={soc.get('signal_strength', 0)}"
+            f"Cycle={self.cycle_count}, Items={res.get('item_count', 0)},"
+            f" Signal={soc.get('signal_strength', 0)}"
         )
         if llm_decision:
             action = llm_decision["action"]
@@ -94,14 +120,22 @@ class AutonomousBrain:
             confidence = max(0.0, min(1.0, llm_decision["confidence"]))
         elif res.get("item_count", 0) > 0:
             action = "consolidate_knowledge"
-            rationale = f"{res['item_count']} araştırma kaydı işlendi ve sosyal sinyal={soc['signal_strength']}."
+            rationale = (
+                f"{res['item_count']} araştırma kaydı işlendi ve sosyal"
+                f" sinyal={soc['signal_strength']}."
+            )
             confidence = 0.82
         else:
             action = "backoff_and_retry"
-            rationale = "Aktif akış verisi sınırlı; bir sonraki döngüde yeniden taranacak."
+            rationale = (
+                "Aktif akış verisi sınırlı; bir sonraki döngüde yeniden"
+                " taranacak."
+            )
             confidence = 0.65
 
-        self.memory.add_decision(self.cycle_count, action, rationale, confidence)
+        self.memory.add_decision(
+            self.cycle_count, action, rationale, confidence
+        )
 
         return {
             "cycle": self.cycle_count,
